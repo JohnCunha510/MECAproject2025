@@ -27,9 +27,12 @@ int rotary_count = 0;
 long encoder_count = 0;
 int pwm_output = 100;
 int motor_current = 0;
+float alpha = 0.2;
+int motor_current_smooth = 0;
+int motor_current_smooth_last = 0;
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB
   }
@@ -44,6 +47,8 @@ void setup() {
   pinMode(ENCODER_B, INPUT);
   pinMode(CLK, INPUT);
   pinMode(BUTTON, INPUT);
+
+
 }
 
 void loop() {
@@ -61,19 +66,39 @@ void loop() {
     digitalWrite(DIR_B, LOW);
   }
 
-  pwm_output = min(100, max(0, rotary_count));
-  pwm_output = map(pwm_output, 0, 100, 0, 255);
+  rotary_count = min(100, max(0, rotary_count));
+  pwm_output = map(rotary_count, 0, 100, 0, 255);
   analogWrite(PWM_B, pwm_output);
 
-  motor_current = analogRead(SNS_B); //map(analogRead(SNS_B), 0, 676, 0, 2);
-  Serial.print("motor current: ");
-  Serial.println(motor_current);  
   
-  Serial.print("encoder count: ");
-  Serial.println(encoder_count);  
-  Serial.print("rotary count: ");
-  Serial.println(rotary_count);  
-  Serial.println("==================================");  
+  motor_current = analogRead(SNS_B); //map(analogRead(SNS_B), 0, 676, 0, 2);
+  
+  /*
+  motor_current_smooth = 0;
+  for (int i = 0; i < 10; i++) {
+    motor_current_values[i] = motor_current_values[i+1];
+    motor_current_smooth += motor_current_values[i+1];
+  }
+  motor_current_values[10] = motor_current;
+  motor_current_smooth += motor_current_values[10];
+  motor_current_smooth = motor_current_smooth / 10;
+  */
+
+  motor_current_smooth = alpha * motor_current + (1 - alpha) * motor_current_smooth_last;
+  motor_current_smooth_last = motor_current_smooth;
+
+  Serial.print("motor-current:");
+  Serial.print(motor_current);
+  Serial.print(",");
+  Serial.print("motor-current-smooth:");
+  Serial.print(motor_current_smooth);  
+  //Serial.print(",");
+  //Serial.print("encoder-count:");
+  //Serial.print(encoder_count);  
+  //Serial.print(",");
+  //Serial.print("rotary-count:");
+  //Serial.print(rotary_count);   
+  Serial.println("");   
   delay (100);
 
 
@@ -96,10 +121,12 @@ void rightEncoderEvent() {
 
 
 void RoteStateChanged() {
-  if (digitalRead(CLK) == LOW) {
-    rotary_count++; }
-  else {
-    rotary_count--; }
+  if (digitalRead(DAT) == LOW) {
+    if (digitalRead(CLK) == LOW) {
+      rotary_count++; }
+    else {
+      rotary_count--; }
+  }
 
 }
 
