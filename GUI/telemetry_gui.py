@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTextEdit,
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QTextEdit
 from PyQt5.QtCore import QTimer
 from PyQt5 import QtGui
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -9,7 +9,7 @@ class TelemetryWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Rocket Telemetry")
-        self.setWindowIcon(QtGui.QIcon('icon.png'))
+        self.setWindowIcon(QtGui.QIcon('MECAproject2025\GUI\icon.png'))
 
         self.x_data = []
         self.y_data = []
