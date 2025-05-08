@@ -26,7 +26,7 @@ def animate(i):
     # Pull data from the queue
     while not data_queue.empty():
         value = data_queue.get()
-        print("[1] Pres:%d" % (value))
+        print("[1] %d" % (value))
         x_data.append(x_data[-1] + 1)  # Simple x: count of values
         y_data.append(value)
 
@@ -49,3 +49,4 @@ serial_thread.start()
 fig, ax = plt.subplots()
 ani = animation.FuncAnimation(fig, animate, interval=100)  # update every 100ms
 plt.show()
+

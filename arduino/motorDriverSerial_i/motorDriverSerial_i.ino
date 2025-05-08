@@ -32,6 +32,7 @@ int motor_current_smooth = 0;
 int motor_current_smooth_last = 0;
 
 char FrameBuffer;
+int serial_time = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -56,6 +57,97 @@ void setup() {
 
 void loop() {
 
+  /*
+  if(Serial.available() > 0)
+    {
+      byte receivedByte = (byte)Serial.read();
+      if(receivedByte == FRAME_ESCAPE_CHAR)
+      {
+          g_xorValue = FRAME_XOR_CHAR;
+      } else
+      {
+        receivedByte ^= g_xorValue;
+        g_xorValue = 0x00;
+
+        switch(g_ReceiverStatus)
+        {
+          case RCV_ST_IDLE:
+          {
+            if(receivedByte == FRAME_START)
+            {   
+              g_BufferIndex = 0;
+              g_InputBuffer[g_BufferIndex++] = receivedByte;
+              g_Checksum = receivedByte;
+              g_ReceiverStatus = RCV_ST_CMD;
+            }
+          } break;
+
+          case RCV_ST_CMD:
+          {
+            g_InputBuffer[g_BufferIndex++] = receivedByte;
+            g_Checksum += receivedByte;
+            g_ReceiverStatus = RCV_ST_DATA_LENGTH;
+          } break;
+
+          case RCV_ST_DATA_LENGTH:
+          {
+            g_DataLength = receivedByte;
+            if(g_DataLength > 0)
+            {
+                g_InputBuffer[g_BufferIndex++] = receivedByte;
+                g_Checksum += receivedByte;
+                g_ReceiverStatus = RCV_ST_DATA;
+            } else
+            {   
+                g_ReceiverStatus = RCV_ST_IDLE;
+            }
+          } break;
+
+          case RCV_ST_DATA:
+          {
+            g_InputBuffer[g_BufferIndex++] = receivedByte;
+            g_Checksum += receivedByte;
+            if(--g_DataLength == 0)
+                g_ReceiverStatus = RCV_ST_CHECKSUM;
+          } break;
+
+          case RCV_ST_CHECKSUM:
+          {
+            if(receivedByte == g_Checksum)
+            {   
+              g_ReceiverStatus = RCV_ST_IDLE;
+              g_InputBuffer[g_BufferIndex++] = receivedByte;
+
+              switch(g_InputBuffer[INDEX_CMD])
+              {
+                case CMD_PWM_LED_R:
+                {
+                    ledcWrite(ledChRed, GetDataByte(g_InputBuffer));
+                } break;
+
+                case CMD_PWM_LED_G:
+                {
+                    ledcWrite(ledChGreen, GetDataByte(g_InputBuffer));
+                } break;
+
+                case CMD_PWM_LED_B:
+                {
+                    ledcWrite(ledChBlue, GetDataByte(g_InputBuffer));  
+                } break; 
+
+                case CMD_ADC_ENABLE:
+                {
+                    g_AdcEnabled = (bool)GetDataByte(g_InputBuffer);
+                }
+              }
+            }
+          } break;
+        }
+      }
+    } else {
+
+      */
+
   lastPressed = pressed;
   pressed = digitalRead(BUTTON);
   if (lastPressed == false && pressed == true) {
@@ -73,8 +165,7 @@ void loop() {
   pwm_output = map(rotary_count, 0, 100, 0, 255);
   analogWrite(PWM_B, pwm_output);
 
-  
-  motor_current = analogRead(SNS_B); //map(analogRead(SNS_B), 0, 676, 0, 2);
+  motor_current = map(analogRead(SNS_B), 0, 676, 0, 2000);
   
   /*
   motor_current_smooth = 0;
@@ -101,15 +192,13 @@ void loop() {
   //Serial.print(",");
   //Serial.print("rotary-count:");
   //Serial.print(rotary_count);   
-  //Serial.println("");   
-  delay (100);
+  //Serial.println("");
 
-  byte FrameBuffer = motor_current_smooth;
-
-  //Serial.print("FrameBuffer:");
-  //Serial.println(FrameBuffer);
-
-  Serial.write(&FrameBuffer, 1);
+  if(millis() > serial_time + 100) {// Every 10 ms
+    serial_time = millis();
+    byte FrameBuffer = motor_current_smooth;
+    Serial.write(&FrameBuffer, 1);
+  }
 
 }
 
