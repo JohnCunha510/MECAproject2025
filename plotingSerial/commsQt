@@ -17,6 +17,7 @@ class SerialThread(QThread):
         self.port = port
         self.baudrate = baudrate
         self.running = True
+        self.ser = None
 
     def run(self):
         try:
@@ -27,15 +28,28 @@ class SerialThread(QThread):
                 self.new_data.emit(value)
         except Exception as e:
             print("Serial error:", e)
+    
+    def write_data(self, data):
+        if self.ser and self.ser.is_open:
+            self.ser.write((data + '\n').encode('utf-8'))
 
     def stop(self):
         self.running = False
+        if self.ser and self.ser.is_open:
+            self.ser.close()
         self.quit()
         self.wait()
 
 def get_available_ports():
     ports = serial.tools.list_ports.comports()
     return [port.device for port in ports]
+
+class PortComboBox(QComboBox):
+    aboutToShowPopup = pyqtSignal()
+
+    def showPopup(self):
+        self.aboutToShowPopup.emit()  # Emit signal before showing
+        super().showPopup()
 
 # -------- Main Window with Plot --------
 class MainWindow(QMainWindow):
@@ -68,7 +82,8 @@ class MainWindow(QMainWindow):
         self.input_field = QLineEdit()
         self.send_button = QPushButton("Send")
         self.send_button.clicked.connect(self.send_to_serial)
-        self.port_selector = QComboBox()
+        self.port_selector = PortComboBox()
+        self.port_selector.aboutToShowPopup.connect(self.refresh_ports)
         self.refresh_ports()
         #self.port_selector.addItems(["COM3", "COM4", "COM5"])  # Or dynamically detect ports
         self.connect_button = QPushButton("Connect")
@@ -108,6 +123,15 @@ class MainWindow(QMainWindow):
         self.port_selector.clear()
         ports = get_available_ports()
         self.port_selector.addItems(ports)
+    
+    def restart_serial_thread(self, new_port):
+        if hasattr(self, 'serial_thread') and self.serial_thread.isRunning():
+            self.serial_thread.stop()
+
+        # Create new thread with new port
+        self.serial_thread = SerialThread(port=new_port, baudrate=9600)
+        self.serial_thread.new_data.connect(self.receive_data)
+        self.serial_thread.start()
 
     # Send data to serial thread
     def send_to_serial(self):
