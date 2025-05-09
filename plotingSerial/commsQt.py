@@ -10,7 +10,7 @@ import serial.tools.list_ports
 
 # -------- Serial Thread --------
 class SerialThread(QThread):
-    new_data = pyqtSignal(float)
+    new_data = pyqtSignal(int)
 
     def __init__(self, port='COM4', baudrate=9600):
         super().__init__()
@@ -20,14 +20,14 @@ class SerialThread(QThread):
         self.ser = None
 
     def run(self):
-        try:
-            ser = serial.Serial(self.port, self.baudrate)
-            while self.running:
+        ser = serial.Serial(self.port, self.baudrate)
+        while True:
+            try:
                 line = ser.read() #.decode('utf-8')
                 value = int.from_bytes(line) #, byteorder='big', signed=True)  # adjust this if your data format is different
                 self.new_data.emit(value)
-        except Exception as e:
-            print("Serial error:", e)
+            except Exception as e:
+                print("Serial error:", e)
     
     def write_data(self, data):
         if self.ser and self.ser.is_open:
@@ -63,7 +63,7 @@ class MainWindow(QMainWindow):
         self.y_data = [0]
 
         # Serial thread
-        self.serial_thread = SerialThread(port='COM4', baudrate=9600)
+        self.serial_thread = SerialThread(port='COM19', baudrate=9600)
         self.serial_thread.new_data.connect(self.receive_data)
         self.serial_thread.start()
 
@@ -118,6 +118,7 @@ class MainWindow(QMainWindow):
         container = QWidget()
         container.setLayout(main_layout)
         self.setCentralWidget(container)
+
     # Function to refresh the port list
     def refresh_ports(self):
         self.port_selector.clear()
@@ -168,3 +169,4 @@ if __name__ == '__main__':
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
+

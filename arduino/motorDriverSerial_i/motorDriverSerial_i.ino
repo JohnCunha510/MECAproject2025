@@ -32,7 +32,7 @@ int motor_current_smooth = 0;
 int motor_current_smooth_last = 0;
 
 char FrameBuffer;
-int serial_time = 0;
+long serial_time = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -194,11 +194,12 @@ void loop() {
   //Serial.print(rotary_count);   
   //Serial.println("");
 
-  if(millis() > serial_time + 100) {// Every 10 ms
+  if(millis() > serial_time + 100) {// Every 100 ms
     serial_time = millis();
     byte FrameBuffer = motor_current_smooth;
     Serial.write(&FrameBuffer, 1);
   }
+
 
 }
 

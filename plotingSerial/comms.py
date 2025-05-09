@@ -8,7 +8,7 @@ import matplotlib.animation as animation
 data_queue = queue.Queue()
 
 # Serial reading function to run in a separate thread
-def read_serial(port='COM4', baudrate=9600):
+def read_serial(port='COM19', baudrate=9600):
     ser = serial.Serial(port, baudrate)
     while True:
         try:
