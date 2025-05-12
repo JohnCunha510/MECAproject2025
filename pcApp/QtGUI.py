@@ -31,8 +31,9 @@ class MainWindow(QMainWindow):
 
         # Initialize data
         self.x_data = [0]
+        self.x_data_voltage = list(range(1, 102))
         self.y_data_current = [0]
-        self.y_data_voltage = [0]
+        self.y_data_voltage = [0] * 101
         self.y_data_speed = [0]
         self.y_data_torque = [0]
         self.y_data_error = [0]
@@ -123,19 +124,19 @@ class MainWindow(QMainWindow):
 
     def receive_data(self, value):
         self.y_data_current.append(value["current"])
-        self.y_data_voltage[0: value["command"]] = 9
-        self.y_data_voltage[value["command"]+1: 100] = 0
+        #value["command"] = 30
+        self.y_data_voltage[1: value["command"]] = [9] * (value["command"]-1)
+        self.y_data_voltage[value["command"]: -1] = [0] * (100 - value["command"])
         self.y_data_speed.append(value["speed"])
         self.y_data_torque.append(value["torque"])
         self.y_data_error.append(value["error"])
-        print("[1] %d, [2] %d, [3] %d;" % (self.y_data_current[-1], self.y_data_voltage[-1], self.y_data_speed[-1]))
+        print("[1] %d, [2] %d, [3] %d;" % (value["current"], value["command"], value["speed"]))
         self.x_data.append(self.x_data[-1] + 1)  # Simple x: count of values
-        
 
         if len(self.y_data_current) > 100:
             self.x_data.pop(0)
             self.y_data_current.pop(0)
-            self.y_data_voltage.pop(0)
+            #self.y_data_voltage.pop(0)
             self.y_data_speed.pop(0)
             self.y_data_torque.pop(0)
             self.y_data_error.pop(0)
@@ -143,30 +144,40 @@ class MainWindow(QMainWindow):
     def update_plot(self):
         self.current.clear()
         self.current.plot(self.x_data, self.y_data_current)
+        y_max = max(self.y_data_current)
+        self.current.set_ylim(bottom=0, top=y_max * 1.2)  # 10% headroom
         self.current.set_title("Current")
         self.current.set_xlabel("Sample")
         self.current.set_ylabel("mA")
 
         self.voltage.clear()
-        self.voltage.plot(self.x_data, self.y_data_voltage)
+        self.voltage.plot(self.x_data_voltage, self.y_data_voltage)
+        y_max = max(self.y_data_voltage)
+        self.voltage.set_ylim(bottom=0, top=y_max * 1.2)  # 10% headroom
         self.voltage.set_title("Voltage")
         self.voltage.set_xlabel("Sample")
         self.voltage.set_ylabel("mV")
 
         self.speed.clear()
         self.speed.plot(self.x_data, self.y_data_speed)
+        y_max = max(self.y_data_speed)
+        self.speed.set_ylim(bottom=0, top=y_max * 1.2)  # 10% headroom
         self.speed.set_title("speed")
         self.speed.set_xlabel("Sample")
         self.speed.set_ylabel("RPM")
 
         self.torque.clear()
         self.torque.plot(self.x_data, self.y_data_torque)
+        y_max = max(self.y_data_torque)
+        self.torque.set_ylim(bottom=0, top=y_max * 1.2)  # 10% headroom
         self.torque.set_title("torque")
         self.torque.set_xlabel("Sample")
         self.torque.set_ylabel("Nm")
 
         self.error.clear()
         self.error.plot(self.x_data, self.y_data_error)
+        y_max = max(self.y_data_error)
+        self.error.set_ylim(bottom=0, top=y_max * 1.2)  # 10% headroom
         self.error.set_title("error")
         self.error.set_xlabel("Sample")
         self.error.set_ylabel("")

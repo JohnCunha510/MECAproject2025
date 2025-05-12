@@ -62,7 +62,7 @@ class SerialThread(QThread):
                     
 
                     if self.receiverStatus == RCV_ST_IDLE:
-                        print("[10] %3X;" % (self.value))
+                        #print("[10] %3X;" % (self.value))
                         if self.in_byte == FRAME_START:
                             #print("[20] %3X;" % (self.value))
                             self.in_frame.clear()
@@ -71,7 +71,7 @@ class SerialThread(QThread):
                             self.receiverStatus = RCV_ST_CMD
 
                     elif self.receiverStatus == RCV_ST_CMD:
-                        print("[30] %3X;" % (self.value))
+                        #print("[30] %3X;" % (self.value))
                         self.in_frame.append(self.value)
                         self.checksum += self.in_byte
                         if self.value >= 10 & self.value <=17:
@@ -88,7 +88,7 @@ class SerialThread(QThread):
                         self.receiverStatus = RCV_ST_DATA
 
                     elif self.receiverStatus == RCV_ST_DATA:
-                        print("[50] %3X;" % (self.value))
+                        #print("[50] %3X;" % (self.value))
                         self.in_frame.append(self.value)
                         if self.n_byte == self.dataLength:
                             self.data_frame[self.data_name] = self.value << (0 + (self.n_byte-1)*8)
@@ -109,7 +109,7 @@ class SerialThread(QThread):
                             self.in_frame.append(self.value)
                             #print("[62] %3X, %d;" % (self.data_frame["current"], self.data_frame["current"]))
                             #print("[63] %3X, %d;" % (self.data_frame["command"], self.data_frame["command"]))
-                            print("[64] %3X, %d;" % (self.data_frame["speed"], self.data_frame["speed"]))
+                            #print("[64] %3X, %d;" % (self.data_frame["speed"], self.data_frame["speed"]))
                             self.new_data.emit(self.data_frame)
 
                         self.receiverStatus = RCV_ST_IDLE

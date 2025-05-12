@@ -236,22 +236,23 @@ void loop() {
     serial_time = millis();
     
     speed_int = (int) ((abs(encoder_count - encoder_count_last) / 748.0) * (60 / 0.1));
-
+    encoder_count_last = encoder_count;
     
     byte current[] = {(motor_current_smooth & 0xFF00) >> 8, (motor_current_smooth & 0x00FF)};
     //byte checksum = FRAME_START + 0x0B + 0x02 + current[0] + current[1];
     //byte FrameBuffer[] = {FRAME_START, 0x0B, 0x02, current[0], current[1], checksum};
     //Serial.write(FrameBuffer, 6);
 
-    //sendFrameBuffer(0x0B, current, 2);
+    sendFrameBuffer(0x0B, current, 2);
 
-    float voltage_int = map(pwm_output, 0, 255, 0, 9000);
-    byte voltage[] = {(pwm_output & 0xFF00) >> 8, (pwm_output & 0x00FF)};
-    //sendFrameBuffer(0x0F, voltage, 2);
+    //float voltage_int = map(pwm_output, 0, 255, 0, 9000);
+    byte voltage[] = {(rotary_count & 0xFF00) >> 8, (rotary_count & 0x00FF)};
+    sendFrameBuffer(0x0F, voltage, 2);
 
     byte speed[] = {(speed_int & 0xFF00) >> 8, (speed_int & 0x00FF)};
-    //sendFrameBuffer(0x0C, speed, 2);
+    sendFrameBuffer(0x0C, speed, 2);
 
+    /*
     Serial.print("motor-speed:");
     Serial.print(speed_int);
     Serial.print(",");
@@ -265,9 +266,9 @@ void loop() {
     Serial.print(encoder_count_last);  
     Serial.println("");
 
+    */
 
-
-        encoder_count_last = encoder_count;
+        
   }
 
 
