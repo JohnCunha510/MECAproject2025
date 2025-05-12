@@ -20,9 +20,9 @@ class SerialThread(QThread):
         self.ser = None
 
     def run(self):
-        ser = serial.Serial(self.port, self.baudrate)
-        while True:
+        while self.running:
             try:
+                ser = serial.Serial(self.port, self.baudrate)
                 line = ser.read() #.decode('utf-8')
                 value = int.from_bytes(line) #, byteorder='big', signed=True)  # adjust this if your data format is different
                 self.new_data.emit(value)
