@@ -1,3 +1,19 @@
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                             DEFINES
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#define LENGTH_INPUT_BUFFER      50
+#define LENGTH_OUT_DATA_BUFFER   50
+#define LENGTH_OUT_FRAME_BUFFER  60
+
+#define RCV_ST_IDLE              0
+#define RCV_ST_CMD               1
+#define RCV_ST_DATA_LENGTH       2
+#define RCV_ST_DATA              3
+#define RCV_ST_CHECKSUM          4
+
+#define FRAME_START              0x8A
+#define FRAME_ESCAPE_CHAR        0x8B
+#define FRAME_XOR_CHAR           0x20
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                            I/O PIN DEFINITIONS
@@ -16,6 +32,10 @@ const int BUTTON = 6;
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                            Global Variables
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+byte input_buffer[LENGTH_INPUT_BUFFER];            // Incoming data buffer
+byte out_frame_buffer[LENGTH_OUT_FRAME_BUFFER];     // Data buffer for output Frame
+byte out_buffer[LENGTH_OUT_DATA_BUFFER];           // Data buffer for output data
+
 bool blinking = false;
 bool motor_direction = false;
 int target_time;
@@ -25,11 +45,13 @@ bool lastPressed = false;
 int rotary_count = 0;
 
 long encoder_count = 0;
+long encoder_count_last = 0;
 int pwm_output = 100;
 int motor_current = 0;
 float alpha = 0.2;
 int motor_current_smooth = 0;
 int motor_current_smooth_last = 0;
+int speed_int = 0;
 
 char FrameBuffer;
 long serial_time = 0;
@@ -57,6 +79,8 @@ void setup() {
   TCCR2B = _BV(CS22);
   OCR2A = 180;
   OCR2B = 50;
+
+  //speed_time = millis()
 
 }
 
@@ -156,7 +180,7 @@ void loop() {
   lastPressed = pressed;
   pressed = digitalRead(BUTTON);
   if (lastPressed == false && pressed == true) {
-    Serial.println("Change Direction!!");
+    //Serial.println("Change Direction!!");
     motor_direction = !motor_direction;
   }
 
@@ -192,6 +216,9 @@ void loop() {
   motor_current_smooth = alpha * motor_current + (1 - alpha) * motor_current_smooth_last;
   motor_current_smooth_last = motor_current_smooth;
 
+
+
+
   //Serial.print("motor-current:");
   //Serial.print(motor_current);
   //Serial.print(",");
@@ -207,12 +234,89 @@ void loop() {
 
   if(millis() > serial_time + 100) {// Every 100 ms
     serial_time = millis();
-    byte FrameBuffer = motor_current_smooth;
-    Serial.write(&FrameBuffer, 1);
+    
+    speed_int = (int) ((abs(encoder_count - encoder_count_last) / 748.0) * (60 / 0.1));
+
+    
+    byte current[] = {(motor_current_smooth & 0xFF00) >> 8, (motor_current_smooth & 0x00FF)};
+    //byte checksum = FRAME_START + 0x0B + 0x02 + current[0] + current[1];
+    //byte FrameBuffer[] = {FRAME_START, 0x0B, 0x02, current[0], current[1], checksum};
+    //Serial.write(FrameBuffer, 6);
+
+    //sendFrameBuffer(0x0B, current, 2);
+
+    float voltage_int = map(pwm_output, 0, 255, 0, 9000);
+    byte voltage[] = {(pwm_output & 0xFF00) >> 8, (pwm_output & 0x00FF)};
+    //sendFrameBuffer(0x0F, voltage, 2);
+
+    byte speed[] = {(speed_int & 0xFF00) >> 8, (speed_int & 0x00FF)};
+    //sendFrameBuffer(0x0C, speed, 2);
+
+    Serial.print("motor-speed:");
+    Serial.print(speed_int);
+    Serial.print(",");
+    Serial.print("ratio:");
+    Serial.print(abs(encoder_count - encoder_count_last) / 748.0);
+    Serial.print(",");
+    Serial.print("encoder-count:");
+    Serial.print(encoder_count);  
+    Serial.print(",");
+    Serial.print("encoder-count-last:");
+    Serial.print(encoder_count_last);  
+    Serial.println("");
+
+
+
+        encoder_count_last = encoder_count;
   }
 
 
 }
+
+
+void sendFrameBuffer(byte cmd, byte* data_buffer, int data_length)
+{
+  int i = 0;
+  out_frame_buffer[0] = FRAME_START;                             // Start Frame
+  out_frame_buffer[1] = cmd;                                     // Comando
+  out_frame_buffer[2] = data_length;                                  // Lunghezza campo dati
+  for(i = 0; i < data_length; i++)
+    out_frame_buffer[i + 3] = data_buffer[i];
+  out_frame_buffer[data_length + 3] = calculateChecksum(data_length + 3);  // Checksum
+
+  sendFrame(data_length + 4);
+}
+
+byte calculateChecksum(byte length)
+{
+  byte rv = 0, index;
+  for(index = 0; index < length; index++)
+  {
+    rv += out_frame_buffer[index];
+  }
+  return rv;
+}
+
+void sendFrame(int length)
+{
+  int i;
+  byte dataToSend = 0;
+
+  out_buffer[dataToSend++] = FRAME_START;
+
+  for(i = 1; i < length; i++)
+  {
+    if(out_frame_buffer[i] == FRAME_START || out_frame_buffer[i] == FRAME_ESCAPE_CHAR)
+    {
+      out_buffer[dataToSend++] = FRAME_ESCAPE_CHAR;
+      out_buffer[dataToSend++] = out_frame_buffer[i] ^ FRAME_XOR_CHAR;
+    } else
+      out_buffer[dataToSend++] = out_frame_buffer[i];
+  }
+  
+  Serial.write(out_buffer, dataToSend);
+}
+
 
 void rightEncoderEvent() {
   if (digitalRead(ENCODER_A) == HIGH) {

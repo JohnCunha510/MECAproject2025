@@ -31,7 +31,11 @@ class MainWindow(QMainWindow):
 
         # Initialize data
         self.x_data = [0]
-        self.y_data = [0]
+        self.y_data_current = [0]
+        self.y_data_voltage = [0]
+        self.y_data_speed = [0]
+        self.y_data_torque = [0]
+        self.y_data_error = [0]
 
         # Serial thread
         self.serial_thread = SerialThread(port='COM4', baudrate=9600)
@@ -47,7 +51,11 @@ class MainWindow(QMainWindow):
         # Matplotlib setup
         self.figure = Figure()
         self.canvas = FigureCanvas(self.figure)
-        self.current = self.figure.add_subplot(111)
+        self.current = self.figure.add_subplot(231)
+        self.speed = self.figure.add_subplot(232)
+        self.torque = self.figure.add_subplot(234)
+        self.error = self.figure.add_subplot(235)
+        self.voltage = self.figure.add_subplot(233)
 
         # ----- Left control panel -----
         self.input_field = QLineEdit()
@@ -83,7 +91,7 @@ class MainWindow(QMainWindow):
         # ----- Combine into main horizontal layout -----
         main_layout = QHBoxLayout()
         main_layout.addWidget(left_panel, 1)    # Stretch factor 1
-        main_layout.addWidget(right_panel, 4)   # Stretch factor 4 (plot area is bigger)
+        main_layout.addWidget(right_panel, 6)   # Stretch factor 4 (plot area is bigger)
 
         # Final container
         container = QWidget()
@@ -114,19 +122,52 @@ class MainWindow(QMainWindow):
         self.restart_serial_thread(selected_port)
 
     def receive_data(self, value):
-        self.y_data.append(value)
-        print("[1] %d" % (value))
+        self.y_data_current.append(value["current"])
+        self.y_data_voltage.append(value["command"])
+        self.y_data_speed.append(value["speed"])
+        self.y_data_torque.append(value["torque"])
+        self.y_data_error.append(value["error"])
+        print("[1] %d, [2] %d, [3] %d;" % (self.y_data_current[-1], self.y_data_voltage[-1], self.y_data_speed[-1]))
         self.x_data.append(self.x_data[-1] + 1)  # Simple x: count of values
-        if len(self.y_data) > 100:
+        if len(self.y_data_current) > 100:
             self.x_data.pop(0)
-            self.y_data.pop(0)
+            self.y_data_current.pop(0)
+            self.y_data_voltage.pop(0)
+            self.y_data_speed.pop(0)
+            self.y_data_torque.pop(0)
+            self.y_data_error.pop(0)
 
     def update_plot(self):
         self.current.clear()
-        self.current.plot(self.x_data, self.y_data)
+        self.current.plot(self.x_data, self.y_data_current)
         self.current.set_title("Current")
         self.current.set_xlabel("Sample")
         self.current.set_ylabel("mA")
+
+        self.voltage.clear()
+        self.voltage.plot(self.x_data, self.y_data_voltage)
+        self.voltage.set_title("Voltage")
+        self.voltage.set_xlabel("Sample")
+        self.voltage.set_ylabel("mV")
+
+        self.speed.clear()
+        self.speed.plot(self.x_data, self.y_data_speed)
+        self.speed.set_title("speed")
+        self.speed.set_xlabel("Sample")
+        self.speed.set_ylabel("RPM")
+
+        self.torque.clear()
+        self.torque.plot(self.x_data, self.y_data_torque)
+        self.torque.set_title("torque")
+        self.torque.set_xlabel("Sample")
+        self.torque.set_ylabel("Nm")
+
+        self.error.clear()
+        self.error.plot(self.x_data, self.y_data_error)
+        self.error.set_title("error")
+        self.error.set_xlabel("Sample")
+        self.error.set_ylabel("")
+
         self.canvas.draw()
 
     def closeEvent(self, event):
