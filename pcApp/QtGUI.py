@@ -123,12 +123,15 @@ class MainWindow(QMainWindow):
 
     def receive_data(self, value):
         self.y_data_current.append(value["current"])
-        self.y_data_voltage.append(value["command"])
+        self.y_data_voltage[0: value["command"]] = 9
+        self.y_data_voltage[value["command"]+1: 100] = 0
         self.y_data_speed.append(value["speed"])
         self.y_data_torque.append(value["torque"])
         self.y_data_error.append(value["error"])
         print("[1] %d, [2] %d, [3] %d;" % (self.y_data_current[-1], self.y_data_voltage[-1], self.y_data_speed[-1]))
         self.x_data.append(self.x_data[-1] + 1)  # Simple x: count of values
+        
+
         if len(self.y_data_current) > 100:
             self.x_data.pop(0)
             self.y_data_current.pop(0)
