@@ -52,6 +52,11 @@ void setup() {
   pinMode(CLK, INPUT);
   pinMode(BUTTON, INPUT);
 
+  // FastPWM pin 11
+  TCCR2A = _BV(COM2A1) | _BV(COM2B1) | _BV(WGM21) | _BV(WGM20);
+  TCCR2B = _BV(CS22);
+  OCR2A = 180;
+  OCR2B = 50;
 
 }
 
@@ -163,7 +168,13 @@ void loop() {
 
   rotary_count = min(100, max(0, rotary_count));
   pwm_output = map(rotary_count, 0, 100, 0, 255);
-  analogWrite(PWM_B, pwm_output);
+  //analogWrite(PWM_B, pwm_output);
+  if (pwm_output <= 0) {
+    pinMode(11, INPUT);
+  } else {
+    pinMode(11, OUTPUT);
+  }
+  OCR2A = pwm_output;
 
   motor_current = map(analogRead(SNS_B), 0, 676, 0, 2000);
   

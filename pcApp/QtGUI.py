@@ -1,6 +1,6 @@
 import sys
 import serial
-from serialComm import SerialThread
+from serialCommThread import SerialThread
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QComboBox
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer
 from PyQt5.QtWidgets import QPushButton, QLineEdit, QHBoxLayout
