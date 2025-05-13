@@ -5,3 +5,4 @@
 ![image](https://github.com/user-attachments/assets/f9833ad0-1e0c-4141-b661-6dc4644c2aa6)
 ![image](https://github.com/user-attachments/assets/7c482324-a411-4760-b52b-522871f0dfcf)
 ![Arduino_connections](https://github.com/user-attachments/assets/73e40205-7b00-473f-a16d-a9df8f1a5c95)
+![image](https://github.com/user-attachments/assets/d525058d-7544-4ab8-ae2f-221251b59d36)
