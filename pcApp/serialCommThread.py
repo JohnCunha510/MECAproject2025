@@ -39,6 +39,7 @@ class SerialThread(QThread):
         self.value = 0
         self.xored = 0x00
         self.in_frame = []
+        self.out_frame = []
         self.checksum = 0x00
         self.dataLength = 0
         self.n_byte = 0
@@ -48,9 +49,9 @@ class SerialThread(QThread):
 
     def run(self):
         try:
-            ser = serial.Serial(self.port, self.baudrate)
+            self.ser = serial.Serial(self.port, self.baudrate, timeout=0.1)
             while self.running:
-                self.in_byte = ser.read(1) #.decode('utf-8')
+                self.in_byte = self.ser.read(1) #.decode('utf-8')
                 self.value = int.from_bytes(self.in_byte, byteorder='big', signed=False)
 
                 if self.in_byte == FRAME_ESCAPE_CHAR:
@@ -71,7 +72,7 @@ class SerialThread(QThread):
                             self.receiverStatus = RCV_ST_CMD
 
                     elif self.receiverStatus == RCV_ST_CMD:
-                        #print("[30] %3X;" % (self.value))
+                        print("[30] %3X;" % (self.value))
                         self.in_frame.append(self.value)
                         self.checksum += self.in_byte
                         if self.value >= 10 & self.value <=17:
@@ -80,7 +81,7 @@ class SerialThread(QThread):
                         self.receiverStatus = RCV_ST_DATA_LENGTH
 
                     elif self.receiverStatus == RCV_ST_DATA_LENGTH:
-                        #print("[40] %3X;" % (self.value))
+                        print("[40] %3X;" % (self.value))
                         self.dataLength = self.value
                         self.n_byte = self.value
                         self.in_frame.append(self.value)
@@ -88,7 +89,7 @@ class SerialThread(QThread):
                         self.receiverStatus = RCV_ST_DATA
 
                     elif self.receiverStatus == RCV_ST_DATA:
-                        #print("[50] %3X;" % (self.value))
+                        print("[50] %3X;" % (self.value))
                         self.in_frame.append(self.value)
                         if self.n_byte == self.dataLength:
                             self.data_frame[self.data_name] = self.value << (0 + (self.n_byte-1)*8)
@@ -117,9 +118,31 @@ class SerialThread(QThread):
         except Exception as e:
             print("Serial error:", e)
     
-    def write_data(self, data):
+    def write_data(self, command_id, n_data, values):
+        self.out_frame.clear()
+        self.out_frame.append(FRAME_START)
+        self.out_frame.append(command_id)
+        if command_id == 0x03:
+            self.out_frame.append(n_data)
+            self.out_frame.append(values[0] & 0xFF)
+        else:
+            self.out_frame.append(n_data * 2)
+            for value in values:
+                self.out_frame.append((value >> 8) & 0xFF)
+                self.out_frame.append(value & 0xFF)
+
+        self.out_frame.append(self.calculate_checksum())
+        
         if self.ser and self.ser.is_open:
-            self.ser.write((data + '\n').encode('utf-8'))
+            self.ser.write(bytes(self.out_frame))
+
+    def calculate_checksum(self):
+        checksum = 0x00
+        for byte in self.out_frame:
+            checksum += byte
+            print("[101] %3X;" % (byte))
+        print("[102] %3X;" % (checksum))
+        return checksum
 
     def stop(self):
         self.running = False

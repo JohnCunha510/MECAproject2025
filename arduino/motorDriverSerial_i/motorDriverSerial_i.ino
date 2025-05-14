@@ -32,7 +32,7 @@ const int BUTTON = 6;
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                            Global Variables
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-byte input_buffer[LENGTH_INPUT_BUFFER];            // Incoming data buffer
+byte g_InputBuffer[LENGTH_INPUT_BUFFER];            // Incoming data buffer
 byte out_frame_buffer[LENGTH_OUT_FRAME_BUFFER];     // Data buffer for output Frame
 byte out_buffer[LENGTH_OUT_DATA_BUFFER];           // Data buffer for output data
 
@@ -55,6 +55,12 @@ int speed_int = 0;
 
 char FrameBuffer;
 long serial_time = 0;
+
+int g_ReceiverStatus = 0;
+int g_BufferIndex = 0;
+int g_DataLength = 0;
+byte g_xorValue = 0x00;
+byte g_Checksum = 0x00;
 
 void setup() {
   Serial.begin(9600);
@@ -86,7 +92,7 @@ void setup() {
 
 void loop() {
 
-  /*
+  
   if(Serial.available() > 0)
     {
       byte receivedByte = (byte)Serial.read();
@@ -146,130 +152,107 @@ void loop() {
             {   
               g_ReceiverStatus = RCV_ST_IDLE;
               g_InputBuffer[g_BufferIndex++] = receivedByte;
-
-              switch(g_InputBuffer[INDEX_CMD])
-              {
-                case CMD_PWM_LED_R:
-                {
-                    ledcWrite(ledChRed, GetDataByte(g_InputBuffer));
-                } break;
-
-                case CMD_PWM_LED_G:
-                {
-                    ledcWrite(ledChGreen, GetDataByte(g_InputBuffer));
-                } break;
-
-                case CMD_PWM_LED_B:
-                {
-                    ledcWrite(ledChBlue, GetDataByte(g_InputBuffer));  
-                } break; 
-
-                case CMD_ADC_ENABLE:
-                {
-                    g_AdcEnabled = (bool)GetDataByte(g_InputBuffer);
-                }
-              }
+              sendFrameBuffer(0x02, receivedByte, 1);
             }
           } break;
         }
       }
     } else {
 
+      lastPressed = pressed;
+      pressed = digitalRead(BUTTON);
+      if (lastPressed == false && pressed == true) {
+        //Serial.println("Change Direction!!");
+        motor_direction = !motor_direction;
+      }
+
+      if (motor_direction) {
+        digitalWrite(DIR_B, HIGH);
+      } else {
+        digitalWrite(DIR_B, LOW);
+      }
+
+      rotary_count = min(100, max(0, rotary_count));
+      pwm_output = map(rotary_count, 0, 100, 0, 255);
+      //analogWrite(PWM_B, pwm_output);
+      if (pwm_output <= 0) {
+        pinMode(11, INPUT);
+      } else {
+        pinMode(11, OUTPUT);
+      }
+      OCR2A = pwm_output;
+
+      motor_current = map(analogRead(SNS_B), 0, 676, 0, 2000);
+      
+      /*
+      motor_current_smooth = 0;
+      for (int i = 0; i < 10; i++) {
+        motor_current_values[i] = motor_current_values[i+1];
+        motor_current_smooth += motor_current_values[i+1];
+      }
+      motor_current_values[10] = motor_current;
+      motor_current_smooth += motor_current_values[10];
+      motor_current_smooth = motor_current_smooth / 10;
       */
 
-  lastPressed = pressed;
-  pressed = digitalRead(BUTTON);
-  if (lastPressed == false && pressed == true) {
-    //Serial.println("Change Direction!!");
-    motor_direction = !motor_direction;
-  }
-
-  if (motor_direction) {
-    digitalWrite(DIR_B, HIGH);
-  } else {
-    digitalWrite(DIR_B, LOW);
-  }
-
-  rotary_count = min(100, max(0, rotary_count));
-  pwm_output = map(rotary_count, 0, 100, 0, 255);
-  //analogWrite(PWM_B, pwm_output);
-  if (pwm_output <= 0) {
-    pinMode(11, INPUT);
-  } else {
-    pinMode(11, OUTPUT);
-  }
-  OCR2A = pwm_output;
-
-  motor_current = map(analogRead(SNS_B), 0, 676, 0, 2000);
-  
-  /*
-  motor_current_smooth = 0;
-  for (int i = 0; i < 10; i++) {
-    motor_current_values[i] = motor_current_values[i+1];
-    motor_current_smooth += motor_current_values[i+1];
-  }
-  motor_current_values[10] = motor_current;
-  motor_current_smooth += motor_current_values[10];
-  motor_current_smooth = motor_current_smooth / 10;
-  */
-
-  motor_current_smooth = alpha * motor_current + (1 - alpha) * motor_current_smooth_last;
-  motor_current_smooth_last = motor_current_smooth;
+      motor_current_smooth = alpha * motor_current + (1 - alpha) * motor_current_smooth_last;
+      motor_current_smooth_last = motor_current_smooth;
 
 
 
 
-  //Serial.print("motor-current:");
-  //Serial.print(motor_current);
-  //Serial.print(",");
-  //Serial.print("motor-current-smooth:");
-  //Serial.print(motor_current_smooth);  
-  //Serial.print(",");
-  //Serial.print("encoder-count:");
-  //Serial.print(encoder_count);  
-  //Serial.print(",");
-  //Serial.print("rotary-count:");
-  //Serial.print(rotary_count);   
-  //Serial.println("");
+      //Serial.print("motor-current:");
+      //Serial.print(motor_current);
+      //Serial.print(",");
+      //Serial.print("motor-current-smooth:");
+      //Serial.print(motor_current_smooth);  
+      //Serial.print(",");
+      //Serial.print("encoder-count:");
+      //Serial.print(encoder_count);  
+      //Serial.print(",");
+      //Serial.print("rotary-count:");
+      //Serial.print(rotary_count);   
+      //Serial.println("");
 
-  if(millis() > serial_time + 100) {// Every 100 ms
-    serial_time = millis();
-    
-    speed_int = (int) ((abs(encoder_count - encoder_count_last) / 748.0) * (60 / 0.1));
-    encoder_count_last = encoder_count;
-    
-    byte current[] = {(motor_current_smooth & 0xFF00) >> 8, (motor_current_smooth & 0x00FF)};
-    //byte checksum = FRAME_START + 0x0B + 0x02 + current[0] + current[1];
-    //byte FrameBuffer[] = {FRAME_START, 0x0B, 0x02, current[0], current[1], checksum};
-    //Serial.write(FrameBuffer, 6);
-
-    sendFrameBuffer(0x0B, current, 2);
-
-    //float voltage_int = map(pwm_output, 0, 255, 0, 9000);
-    byte voltage[] = {(rotary_count & 0xFF00) >> 8, (rotary_count & 0x00FF)};
-    sendFrameBuffer(0x0F, voltage, 2);
-
-    byte speed[] = {(speed_int & 0xFF00) >> 8, (speed_int & 0x00FF)};
-    sendFrameBuffer(0x0C, speed, 2);
-
-    /*
-    Serial.print("motor-speed:");
-    Serial.print(speed_int);
-    Serial.print(",");
-    Serial.print("ratio:");
-    Serial.print(abs(encoder_count - encoder_count_last) / 748.0);
-    Serial.print(",");
-    Serial.print("encoder-count:");
-    Serial.print(encoder_count);  
-    Serial.print(",");
-    Serial.print("encoder-count-last:");
-    Serial.print(encoder_count_last);  
-    Serial.println("");
-
-    */
-
+      if(millis() > serial_time + 100) {// Every 100 ms
+        serial_time = millis();
         
-  }
+        speed_int = (int) ((abs(encoder_count - encoder_count_last) / 748.0) * (60 / 0.1));
+        encoder_count_last = encoder_count;
+        
+        byte current[] = {(motor_current_smooth & 0xFF00) >> 8, (motor_current_smooth & 0x00FF)};
+        //byte checksum = FRAME_START + 0x0B + 0x02 + current[0] + current[1];
+        //byte FrameBuffer[] = {FRAME_START, 0x0B, 0x02, current[0], current[1], checksum};
+        //Serial.write(FrameBuffer, 6);
+
+        //sendFrameBuffer(0x0B, current, 2);
+
+        //float voltage_int = map(pwm_output, 0, 255, 0, 9000);
+        byte voltage[] = {(rotary_count & 0xFF00) >> 8, (rotary_count & 0x00FF)};
+        //sendFrameBuffer(0x0F, voltage, 2);
+
+        byte speed[] = {(speed_int & 0xFF00) >> 8, (speed_int & 0x00FF)};
+        //sendFrameBuffer(0x0C, speed, 2);
+
+        /*
+        Serial.print("motor-speed:");
+        Serial.print(speed_int);
+        Serial.print(",");
+        Serial.print("ratio:");
+        Serial.print(abs(encoder_count - encoder_count_last) / 748.0);
+        Serial.print(",");
+        Serial.print("encoder-count:");
+        Serial.print(encoder_count);  
+        Serial.print(",");
+        Serial.print("encoder-count-last:");
+        Serial.print(encoder_count_last);  
+        Serial.println("");
+
+        */
+
+            
+      }
+    }
 
 
 }

@@ -12,10 +12,12 @@ from matplotlib.figure import Figure
 import serial.tools.list_ports
 
 
+# return available Serial Ports
 def get_available_ports():
     ports = serial.tools.list_ports.comports()
     return [port.device for port in ports]
 
+# QComboBox with a way to detect when the list is opened
 class PortComboBox(QComboBox):
     aboutToShowPopup = pyqtSignal()
 
@@ -23,8 +25,14 @@ class PortComboBox(QComboBox):
         self.aboutToShowPopup.emit()  # Emit signal before showing
         super().showPopup()
 
+# Control panel section and function
+# -> MODE OPTION BUTTONS
+# -> PID GAIN SLIDERS
+# -> TORQUE SLIDER
+# variables are sent, received and updated trhough the class functions
 class ControlPanel(QWidget):
-    def __init__(self):
+    def __init__(self, main_window_instance):
+        self.main_window = main_window_instance
         super().__init__()
         self.control_mode = 0
         self.PID_Kp = 0
@@ -32,13 +40,15 @@ class ControlPanel(QWidget):
         self.PID_Kd = 0
         self.set_torque = 0
 
+        # create main layout
         layout = QVBoxLayout(self)
 
-        # --- SLIDERS ---
+        # Title Lable Control Panel
         label = QLabel("Control Panel")
         label.setStyleSheet("font-size: 16pt; font-weight: bold;")
         layout.addWidget(label)
 
+        # Control mode options (button arrray)
         layout.addWidget(QLabel("Operating Mode"))
 
         # Create layout for horizontal button row
@@ -56,7 +66,7 @@ class ControlPanel(QWidget):
             mode_layout.addWidget(btn)
             self.mode_buttons.append(btn)
 
-        # Add the horizontal layout to right panel
+        # Add the horizontal button layout
         layout.addLayout(mode_layout)
 
         # Set default mode
@@ -69,6 +79,7 @@ class ControlPanel(QWidget):
         # Create layout for PID values
         PID_layout = QHBoxLayout()
 
+        # left layout for Lables
         PID_layout_left = QVBoxLayout()
 
         PID_name_P = QLabel("P")
@@ -86,29 +97,30 @@ class ControlPanel(QWidget):
         PID_name_D.setAlignment(Qt.AlignCenter)
         PID_layout_left.addWidget(PID_name_D)
 
+        # right layout for PID sliders
         PID_layout_right = QVBoxLayout()
 
         self.slider_Kp = QSlider(Qt.Horizontal)
-        self.slider_Kp.setRange(0, 359)
-        self.slider_Kp.setValue(90)
+        self.slider_Kp.setRange(0, 10)
+        self.slider_Kp.setValue(1)
         self.slider_Kp.setTickPosition(QSlider.TicksBelow)
-        self.slider_Kp.setTickInterval(30)
+        self.slider_Kp.setTickInterval(1)
         self.slider_Kp.valueChanged.connect(self.update_PID_sliders)
         PID_layout_right.addWidget(self.slider_Kp)
 
         self.slider_Ki = QSlider(Qt.Horizontal)
-        self.slider_Ki.setRange(0, 359)
-        self.slider_Ki.setValue(0)
+        self.slider_Ki.setRange(0, 10)
+        self.slider_Ki.setValue(1)
         self.slider_Ki.setTickPosition(QSlider.TicksBelow)
-        self.slider_Ki.setTickInterval(30)
+        self.slider_Ki.setTickInterval(1)
         self.slider_Ki.valueChanged.connect(self.update_PID_sliders)
         PID_layout_right.addWidget(self.slider_Ki)
 
         self.slider_Kd = QSlider(Qt.Horizontal)
-        self.slider_Kd.setRange(0, 100)
-        self.slider_Kd.setValue(50)
+        self.slider_Kd.setRange(0, 10)
+        self.slider_Kd.setValue(1)
         self.slider_Kd.setTickPosition(QSlider.TicksBelow)
-        self.slider_Kd.setTickInterval(30)
+        self.slider_Kd.setTickInterval(1)
         self.slider_Kd.valueChanged.connect(self.update_PID_sliders)
         PID_layout_right.addWidget(self.slider_Kd)
 
@@ -122,6 +134,7 @@ class ControlPanel(QWidget):
         reset_button.clicked.connect(self.reset_sliders)
         layout.addWidget(reset_button)
 
+        # create layout for torque slider
         torque_layout = QHBoxLayout()
 
         self.slider_torque = QSlider(Qt.Horizontal)
@@ -135,23 +148,32 @@ class ControlPanel(QWidget):
 
         layout.addLayout(torque_layout)
 
-    
+    # Reset sliders button function
     def reset_sliders(self):
         self.slider_Kp.setValue(0)
         self.slider_Ki.setValue(0)
         self.slider_Kd.setValue(0)
 
+    # Control mode change function
     def set_mode(self, mode_id):
         self.control_mode = mode_id
+        self.main_window.send_to_serial(0x03, [mode_id])
 
+    # update PID variables from the sliders
     def update_PID_sliders(self, val):
         self.PID_Kp = self.slider_Kp.value()
         self.PID_Ki = self.slider_Ki.value()
         self.PID_Kd = self.slider_Kd.value()
+        self.main_window.send_to_serial(0x04, [self.PID_Kp, self.PID_Ki, self.PID_Kd])
     
+    # update set_torque variable from the slider
     def update_torque_slider(self, val):
         self.set_torque = val
+        self.main_window.send_to_serial(0x05, [val])
 
+
+
+# Motor visualisation class
 class MotorWidget(QWidget):
     def __init__(self):
         super().__init__()
@@ -275,7 +297,8 @@ class MainWindow(QMainWindow):
         self.voltage = self.figure.add_subplot(233)
 
         # ----- Left control panel -----
-        self.control_display = ControlPanel()
+        window = self
+        self.control_display = ControlPanel(window)
         self.control_display.setMinimumWidth(300)
         self.control_display.setMaximumHeight(500)
 
@@ -340,9 +363,11 @@ class MainWindow(QMainWindow):
         self.serial_thread.start()
 
     # Send data to serial thread
-    def send_to_serial(self):
-        text = self.input_field.text()
-        self.serial_thread.write_data(text)
+    def send_to_serial(self, command_id, values):
+        if command_id == 0x04:
+            self.serial_thread.write_data(command_id, 3, values)
+        else:
+            self.serial_thread.write_data(command_id, 1, values)
     
     def change_port(self):
         selected_port = self.port_selector.currentText()
@@ -356,7 +381,7 @@ class MainWindow(QMainWindow):
         self.y_data_speed.append(value["speed"])
         self.y_data_torque.append(value["torque"])
         self.y_data_error.append(value["error"])
-        print("[1] %d, [2] %d, [3] %d;" % (value["current"], value["command"], value["speed"]))
+        #print("[1] %d, [2] %d, [3] %d;" % (value["current"], value["command"], value["speed"]))
         self.x_data.append(self.x_data[-1] + 1)  # Simple x: count of values
 
         if len(self.y_data_current) > 100:
