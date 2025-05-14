@@ -28,7 +28,7 @@ class SerialThread(QThread):
     data_frame = {"position": 0, "current": 0, "speed": 0, "torque": 0, "error": 0, "command": 0, "other": 0}
     new_data = pyqtSignal(object)
 
-    def __init__(self, port='COM4', baudrate=9600):
+    def __init__(self, port='COM19', baudrate=9600):
         super().__init__()
         self.port = port
         self.baudrate = baudrate
@@ -72,7 +72,7 @@ class SerialThread(QThread):
                             self.receiverStatus = RCV_ST_CMD
 
                     elif self.receiverStatus == RCV_ST_CMD:
-                        print("[30] %3X;" % (self.value))
+                        #print("[30] %3X;" % (self.value))
                         self.in_frame.append(self.value)
                         self.checksum += self.in_byte
                         if self.value >= 10 & self.value <=17:
@@ -81,7 +81,7 @@ class SerialThread(QThread):
                         self.receiverStatus = RCV_ST_DATA_LENGTH
 
                     elif self.receiverStatus == RCV_ST_DATA_LENGTH:
-                        print("[40] %3X;" % (self.value))
+                        #print("[40] %3X;" % (self.value))
                         self.dataLength = self.value
                         self.n_byte = self.value
                         self.in_frame.append(self.value)
@@ -89,7 +89,7 @@ class SerialThread(QThread):
                         self.receiverStatus = RCV_ST_DATA
 
                     elif self.receiverStatus == RCV_ST_DATA:
-                        print("[50] %3X;" % (self.value))
+                        #print("[50] %3X;" % (self.value))
                         self.in_frame.append(self.value)
                         if self.n_byte == self.dataLength:
                             self.data_frame[self.data_name] = self.value << (0 + (self.n_byte-1)*8)
@@ -118,20 +118,21 @@ class SerialThread(QThread):
         except Exception as e:
             print("Serial error:", e)
     
-    def write_data(self, command_id, n_data, values):
+    def write_data(self, command_id, n_data, value):
         self.out_frame.clear()
         self.out_frame.append(FRAME_START)
         self.out_frame.append(command_id)
         if command_id == 0x03:
             self.out_frame.append(n_data)
-            self.out_frame.append(values[0] & 0xFF)
+            self.out_frame.append(value & 0x00FF)
         else:
             self.out_frame.append(n_data * 2)
-            for value in values:
-                self.out_frame.append((value >> 8) & 0xFF)
-                self.out_frame.append(value & 0xFF)
+            self.out_frame.append((value >> 8) & 0x00FF)
+            self.out_frame.append(value & 0x00FF)
 
-        self.out_frame.append(self.calculate_checksum())
+        self.out_frame.append(self.calculate_checksum() & 0x00FF)
+
+        print(self.out_frame)
         
         if self.ser and self.ser.is_open:
             self.ser.write(bytes(self.out_frame))

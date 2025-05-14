@@ -40,6 +40,10 @@ class ControlPanel(QWidget):
         self.PID_Kd = 0
         self.set_torque = 0
 
+        self.PID_Kp_reset = 0
+        self.PID_Ki_reset = 0
+        self.PID_Kd_reset = 0
+
         # create main layout
         layout = QVBoxLayout(self)
 
@@ -105,7 +109,7 @@ class ControlPanel(QWidget):
         self.slider_Kp.setValue(1)
         self.slider_Kp.setTickPosition(QSlider.TicksBelow)
         self.slider_Kp.setTickInterval(1)
-        self.slider_Kp.valueChanged.connect(self.update_PID_sliders)
+        self.slider_Kp.valueChanged.connect(self.update_PID_Kp)
         PID_layout_right.addWidget(self.slider_Kp)
 
         self.slider_Ki = QSlider(Qt.Horizontal)
@@ -113,7 +117,7 @@ class ControlPanel(QWidget):
         self.slider_Ki.setValue(1)
         self.slider_Ki.setTickPosition(QSlider.TicksBelow)
         self.slider_Ki.setTickInterval(1)
-        self.slider_Ki.valueChanged.connect(self.update_PID_sliders)
+        self.slider_Ki.valueChanged.connect(self.update_PID_Ki)
         PID_layout_right.addWidget(self.slider_Ki)
 
         self.slider_Kd = QSlider(Qt.Horizontal)
@@ -121,7 +125,7 @@ class ControlPanel(QWidget):
         self.slider_Kd.setValue(1)
         self.slider_Kd.setTickPosition(QSlider.TicksBelow)
         self.slider_Kd.setTickInterval(1)
-        self.slider_Kd.valueChanged.connect(self.update_PID_sliders)
+        self.slider_Kd.valueChanged.connect(self.update_PID_Kd)
         PID_layout_right.addWidget(self.slider_Kd)
 
         PID_layout.addLayout(PID_layout_left, 1)
@@ -150,26 +154,44 @@ class ControlPanel(QWidget):
 
     # Reset sliders button function
     def reset_sliders(self):
-        self.slider_Kp.setValue(0)
-        self.slider_Ki.setValue(0)
-        self.slider_Kd.setValue(0)
+        self.slider_Kp.setValue(self.PID_Kp_reset)
+        self.slider_Ki.setValue(self.PID_Ki_reset)
+        self.slider_Kd.setValue(self.PID_Kd_reset)
 
     # Control mode change function
     def set_mode(self, mode_id):
         self.control_mode = mode_id
-        self.main_window.send_to_serial(0x03, [mode_id])
+        if mode_id == 1:
+            self.PID_Kp_reset = 0
+            self.PID_Ki_reset = 0
+            self.PID_Kd_reset = 0
+        elif mode_id == 2:
+            self.PID_Kp_reset = 0
+            self.PID_Ki_reset = 0
+            self.PID_Kd_reset = 0
+        elif mode_id == 3:
+            self.PID_Kp_reset = 0
+            self.PID_Ki_reset = 0
+            self.PID_Kd_reset = 0
+        self.main_window.send_to_serial(0x03, mode_id)
 
-    # update PID variables from the sliders
-    def update_PID_sliders(self, val):
+    # update PID Kp parameter from the slider
+    def update_PID_Kp(self, val):
         self.PID_Kp = self.slider_Kp.value()
+        self.main_window.send_to_serial(0x04, self.PID_Kp*100)
+    
+    def update_PID_Ki(self, val):
         self.PID_Ki = self.slider_Ki.value()
+        self.main_window.send_to_serial(0x05, self.PID_Ki*100)
+
+    def update_PID_Kd(self, val):
         self.PID_Kd = self.slider_Kd.value()
-        self.main_window.send_to_serial(0x04, [self.PID_Kp, self.PID_Ki, self.PID_Kd])
+        self.main_window.send_to_serial(0x06, self.PID_Kd*100)
     
     # update set_torque variable from the slider
     def update_torque_slider(self, val):
         self.set_torque = val
-        self.main_window.send_to_serial(0x05, [val])
+        self.main_window.send_to_serial(0x07, val)
 
 
 
@@ -273,11 +295,12 @@ class MainWindow(QMainWindow):
         self.y_data_speed = [0]
         self.y_data_torque = [0]
         self.y_data_error = [0]
+        self.y_data_other = [0]
         self.actual_angle = 0
         self.target_angle = 90
 
         # Serial thread
-        self.serial_thread = SerialThread(port='COM4', baudrate=9600)
+        self.serial_thread = SerialThread(port='COM19', baudrate=9600)
         self.serial_thread.new_data.connect(self.receive_data)
         self.serial_thread.start()
 
@@ -295,6 +318,7 @@ class MainWindow(QMainWindow):
         self.torque = self.figure.add_subplot(234)
         self.error = self.figure.add_subplot(235)
         self.voltage = self.figure.add_subplot(233)
+        self.other = self.figure.add_subplot(236)
 
         # ----- Left control panel -----
         window = self
@@ -363,11 +387,8 @@ class MainWindow(QMainWindow):
         self.serial_thread.start()
 
     # Send data to serial thread
-    def send_to_serial(self, command_id, values):
-        if command_id == 0x04:
-            self.serial_thread.write_data(command_id, 3, values)
-        else:
-            self.serial_thread.write_data(command_id, 1, values)
+    def send_to_serial(self, command_id, value):
+        self.serial_thread.write_data(command_id, 1, value)
     
     def change_port(self):
         selected_port = self.port_selector.currentText()
@@ -376,11 +397,14 @@ class MainWindow(QMainWindow):
     def receive_data(self, value):
         self.y_data_current.append(value["current"])
         #value["command"] = 30
+        value["command"] = max(0, min(100, value["command"]))
         self.y_data_voltage[1: value["command"]] = [9] * (value["command"]-1)
         self.y_data_voltage[value["command"]: -1] = [0] * (100 - value["command"])
         self.y_data_speed.append(value["speed"])
         self.y_data_torque.append(value["torque"])
         self.y_data_error.append(value["error"])
+        self.y_data_other.append(value["other"])
+
         #print("[1] %d, [2] %d, [3] %d;" % (value["current"], value["command"], value["speed"]))
         self.x_data.append(self.x_data[-1] + 1)  # Simple x: count of values
 
@@ -391,6 +415,7 @@ class MainWindow(QMainWindow):
             self.y_data_speed.pop(0)
             self.y_data_torque.pop(0)
             self.y_data_error.pop(0)
+            self.y_data_other.pop(0)
 
     def update_plot(self):
         self.current.clear()
@@ -432,6 +457,15 @@ class MainWindow(QMainWindow):
         self.error.set_title("error")
         self.error.set_xlabel("Sample")
         self.error.set_ylabel("")
+
+        self.other.clear()
+        self.other.plot(self.x_data, self.y_data_other)
+        y_max = max(self.y_data_other)
+        self.other.set_ylim(bottom=0, top=1+y_max * 1.2)  # 10% headroom
+        self.other.set_title("other")
+        self.other.set_xlabel("Sample")
+        self.other.set_ylabel("")
+
 
         self.figure.tight_layout()
         self.canvas.draw()
