@@ -158,15 +158,31 @@ class ControlPanel(QWidget):
         torque_layout = QHBoxLayout()
 
         self.slider_torque = QSlider(Qt.Horizontal)
-        self.slider_torque.setRange(0, 100)
-        self.slider_torque.setValue(50)
+        self.slider_torque.setRange(0, 1000)
+        self.slider_torque.setValue(100)
         self.slider_torque.setTickPosition(QSlider.TicksBelow)
         self.slider_torque.setTickInterval(30)
         self.slider_torque.valueChanged.connect(self.update_torque_slider)
+        self.label_torque = QLabel(f"{0.1:.2f}")
         torque_layout.addWidget(QLabel("Set Torque"))
+        torque_layout.addWidget(self.label_torque)
         torque_layout.addWidget(self.slider_torque)
-
         layout.addLayout(torque_layout)
+
+        # create layout for sample window slider
+        sample_layout = QHBoxLayout()
+
+        self.slider_sample = QSlider(Qt.Horizontal)
+        self.slider_sample.setRange(0, 1000)
+        self.slider_sample.setValue(100)
+        self.slider_sample.setTickPosition(QSlider.TicksBelow)
+        self.slider_sample.setTickInterval(100)
+        self.slider_sample.valueChanged.connect(self.update_sample_slider)
+        self.label_sample = QLabel(f"{100:03d}")
+        sample_layout.addWidget(QLabel("Sample Window"))
+        sample_layout.addWidget(self.label_sample)
+        sample_layout.addWidget(self.slider_sample)
+        layout.addLayout(sample_layout)
 
     # Reset sliders button function
     def reset_sliders(self):
@@ -188,9 +204,9 @@ class ControlPanel(QWidget):
                 self.PID_Ki_reset = 1
                 self.PID_Kd_reset = 0.05
             elif mode_id == 2:
-                self.PID_Kp_reset = 0.5
-                self.PID_Ki_reset = 0
-                self.PID_Kd_reset = 0.8
+                self.PID_Kp_reset = 3.0
+                self.PID_Ki_reset = 0.1
+                self.PID_Kd_reset = 1.6
             elif mode_id == 3:
                 self.PID_Kp_reset = 0
                 self.PID_Ki_reset = 0
@@ -220,8 +236,13 @@ class ControlPanel(QWidget):
     # update set_torque variable from the slider
     def update_torque_slider(self, val):
         self.set_torque = val
+        self.label_torque.setText(f"{val*0.0009:.2f}")
         self.main_window.send_to_serial(0x07, val)
 
+    # update update_sample_slider and sample window value in main window
+    def update_sample_slider(self, val):
+        self.label_sample.setText(f"{val:03d}")
+        self.main_window.sample_window = val
 
 
 # Motor visualisation class
@@ -230,7 +251,7 @@ class MotorWidget(QWidget):
         self.main_window = main_window_instance
         super().__init__()
         self.actual_angle = 0
-        self.target_angle = 90
+        self.target_angle = 0
 
 
     def update_angles(self, new_target, new_actual):
@@ -311,6 +332,7 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 1200, 800)
 
         # Initialize data
+        self.sample_window = 100
         self.motor_angle = 0
         self.x_data = [0]
         self.x_data_voltage = list(range(1, 102))
@@ -432,11 +454,13 @@ class MainWindow(QMainWindow):
             self.y_data_torque.append(value["torque"] / 1000)
             self.y_data_error.append(value["error"])
             self.y_data_other.append(value["other"])
+            if self.control_display.control_mode == 2:
+                self.motor_display.set_target_angle(value["other"])
 
             #print("[1] %d, [2] %d, [3] %d;" % (value["current"], value["command"], value["speed"]))
             self.x_data.append(self.x_data[-1] + 1)  # Simple x: count of values
 
-            if len(self.y_data_current) > 100:
+            if len(self.y_data_current) > self.sample_window:
                 self.x_data.pop(0)
                 self.y_data_current.pop(0)
                 #self.y_data_voltage.pop(0)
@@ -464,7 +488,7 @@ class MainWindow(QMainWindow):
         self.voltage.set_ylim(bottom=0, top=0.1+y_max * 1.2)  # 10% headroom
         self.voltage.set_title("Voltage")
         self.voltage.set_xlabel("Sample")
-        self.voltage.set_ylabel("mV")
+        self.voltage.set_ylabel("Duty Cycle")
 
         self.speed.clear()
         self.speed.plot(self.x_data, self.y_data_speed)
@@ -494,7 +518,7 @@ class MainWindow(QMainWindow):
         self.other.plot(self.x_data, self.y_data_other)
         y_max = max(self.y_data_other)
         self.other.set_ylim(bottom=0, top=1+y_max * 1.2)  # 10% headroom
-        self.other.set_title("other")
+        self.other.set_title("Set Command")
         self.other.set_xlabel("Sample")
         self.other.set_ylabel("")
 

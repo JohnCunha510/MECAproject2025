@@ -46,11 +46,11 @@ float alpha = 0.2;
 int motor_current_smooth = 0;
 int motor_current_smooth_last = 0;
 
-int target_time;
 // system states
 bool pressed = false;
 bool lastPressed = false;
 int rotary_count = 0;
+int rotary_command = 0;
 
 // motor control 
 int error_int = 0;
@@ -72,6 +72,7 @@ int position_int = 0;
 int torque_int = 0;
 float Kt = 0.9;
 int motor_command = 0;
+int torque_error = 0;
 
 
 // Serial variables
@@ -185,7 +186,7 @@ void loop() {
             {   
               receiver_status = RCV_ST_IDLE;
               InputBuffer[buffer_index++] = receivedByte;
-              sendFrameBuffer(0x02, &receivedByte, 1);
+              //sendFrameBuffer(0x02, &receivedByte, 1);
               switch(InputBuffer[1]){
                 case 0x03:
                 {
@@ -198,22 +199,22 @@ void loop() {
                 }
                 case 0x04:
                 {
-                  pid_Kp = (float) (received_data_buffer / 100);
+                  pid_Kp = ((float) received_data_buffer) / 100;
                   break;
                 }
                 case 0x05:
                 {
-                  pid_Ki = (float) (received_data_buffer / 100);
+                  pid_Ki = ((float) received_data_buffer) / 100;
                   break;
                 }
                 case 0x06:
                 {
-                  pid_Kd = (float) (received_data_buffer / 100);
+                  pid_Kd = ((float) received_data_buffer) / 100;
                   break;
                 }
                 case 0x07:
                 {
-                  set_torque = received_data_buffer;
+                  set_torque = ((float) received_data_buffer) * 0.9;
                   break;
                 }
                 case 0x08:
@@ -256,7 +257,6 @@ void loop() {
       position_int += 360;
     }
 
-
     torque_int = Kt * motor_current_smooth;
 
     switch(control_mode) {
@@ -282,6 +282,7 @@ void loop() {
           encoder_count_last = encoder_count;
 
           set_speed = map(rotary_count, 0, 100, 0, 230);
+          rotary_command = set_speed;
 
           error = set_speed - speed_int;
 
@@ -312,18 +313,37 @@ void loop() {
           encoder_count_last = encoder_count;
 
           set_position = map(rotary_count, 0, 100, 0, 360);
+          rotary_command = set_position;
 
           error = set_position - position_int;
 
           integral += error * dt;
-          integral = max(-100, min(100, integral));
+          integral = max(-500, min(500, integral));
 
           derivative = (error - error_last) / dt;
           error_last = error;
 
           motor_command = pid_Kp * error + pid_Ki * integral + pid_Kd * derivative;
 
-          motor_command = max(0, min(500, motor_command));
+          if (motor_command < -1) {
+            digitalWrite(DIR_B, LOW);
+            motor_command = abs(motor_command);
+          } else if (motor_command > 1) {
+            digitalWrite(DIR_B, HIGH);
+            motor_command = motor_command;
+          } else {
+            motor_command = 0;
+          }
+
+          torque_error = set_torque - torque_int;
+
+          if (torque_error > 10) {
+            motor_command = motor_command - (0.1 * torque_error);
+
+          }
+
+          motor_command = max(0, min(200, motor_command));
+
 
           pwm_output = map(motor_command, 0, 200, 0, 255);
           OCR2A = pwm_output;
@@ -334,7 +354,51 @@ void loop() {
       }
       case 3: // Control mode 3 - TORQUE
       {
-        pinMode(11, OUTPUT);
+        if(millis() > control_time + 10) {// Every 10 ms
+          dt = (double) (millis() - control_time) / 1000;
+          control_time = millis();
+
+          speed_int = (int) (( (float) abs(encoder_count - encoder_count_last) / 748.0) * (60 / dt));
+          encoder_count_last = encoder_count;
+
+          set_position = map(rotary_count, 0, 100, 0, 360);
+          rotary_command = set_position;
+
+          error = set_position - position_int;
+
+          integral += error * dt;
+          integral = max(-500, min(500, integral));
+
+          derivative = (error - error_last) / dt;
+          error_last = error;
+
+          motor_command = pid_Kp * error + pid_Ki * integral + pid_Kd * derivative;
+
+          if (motor_command < -1) {
+            digitalWrite(DIR_B, LOW);
+            motor_command = abs(motor_command);
+          } else if (motor_command > 1) {
+            digitalWrite(DIR_B, HIGH);
+            motor_command = motor_command;
+          } else {
+            motor_command = 0;
+          }
+
+          torque_error = set_torque - torque_int;
+
+          if (torque_error > 10) {
+            motor_command = motor_command - (0.1 * torque_error);
+
+          }
+
+          motor_command = max(0, min(200, motor_command));
+
+
+          pwm_output = map(motor_command, 0, 200, 0, 255);
+          OCR2A = pwm_output;
+
+          pinMode(11, OUTPUT);
+        }
 
         break;
       }
@@ -355,10 +419,10 @@ void loop() {
       byte speed[] = {(speed_int & 0xFF00) >> 8, (speed_int & 0x00FF)};
       sendFrameBuffer(0x0C, speed, 2);
 
-      byte error_buffer[]  {(error & 0xFF00) >> 8, (error & 0x00FF)};
+      byte error_buffer[]  {(abs(error) & 0xFF00) >> 8, (abs(error) & 0x00FF)};
       sendFrameBuffer(0x0E, error_buffer, 2);
 
-      byte rotary_count_buffer[]  {(rotary_count & 0xFF00) >> 8, (rotary_count & 0x00FF)};
+      byte rotary_count_buffer[]  {(rotary_command & 0xFF00) >> 8, (rotary_command & 0x00FF)};
       sendFrameBuffer(0x10, rotary_count_buffer, 2);
 
       byte torque_buffer[]  {(torque_int & 0xFF00) >> 8, (torque_int & 0x00FF)};
