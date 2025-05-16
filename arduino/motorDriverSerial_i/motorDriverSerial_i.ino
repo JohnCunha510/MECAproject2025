@@ -274,7 +274,7 @@ void loop() {
           digitalWrite(DIR_B, LOW);
         }
 
-        if(millis() > control_time + 10) {// Every 10 ms
+        if(millis() > control_time + 1) {// Every 10 ms
           dt = (double) (millis() - control_time) / 1000;
           control_time = millis();
 
@@ -305,7 +305,7 @@ void loop() {
       }
       case 2: // Control mode 2 - POSITION
       {
-        if(millis() > control_time + 10) {// Every 10 ms
+        if(millis() > control_time + 1) {// Every 10 ms
           dt = (double) (millis() - control_time) / 1000;
           control_time = millis();
 
