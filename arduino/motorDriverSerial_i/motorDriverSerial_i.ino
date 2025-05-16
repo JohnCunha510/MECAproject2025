@@ -36,14 +36,8 @@ byte InputBuffer[LENGTH_INPUT_BUFFER];            // Incoming data buffer
 byte out_frame_buffer[LENGTH_OUT_FRAME_BUFFER];     // Data buffer for output Frame
 byte out_buffer[LENGTH_OUT_DATA_BUFFER];           // Data buffer for output data
 
-bool blinking = false;
+// motor sensing and variables
 bool motor_direction = false;
-int target_time;
-
-bool pressed = false;
-bool lastPressed = false;
-int rotary_count = 0;
-
 long encoder_count = 0;
 long encoder_count_last = 0;
 int pwm_output = 100;
@@ -51,34 +45,50 @@ int motor_current = 0;
 float alpha = 0.2;
 int motor_current_smooth = 0;
 int motor_current_smooth_last = 0;
-int speed_int = 0;
+
+int target_time;
+// system states
+bool pressed = false;
+bool lastPressed = false;
+int rotary_count = 0;
+
+// motor control 
 int error_int = 0;
+int control_mode = 0;
+float pid_Kp = 0;
+float pid_Ki = 0;
+float pid_Kd = 0;
+long control_time = 0;
+double dt = 0;
+int error = 0;
+int error_last = 0;
+float integral = 0;
+float derivative = 0;
+int set_speed = 0;
+int set_position = 0;
+int set_torque = 0;
+int speed_int = 0;
+int position_int = 0;
+int torque_int = 0;
+float Kt = 0.9;
+int motor_command = 0;
 
-char FrameBuffer;
+
+// Serial variables
 long serial_time = 0;
-
 int receiver_status = 0;
 int buffer_index = 0;
 int data_length = 0;
 int n_byte = 0;
 byte xor_value = 0x00;
 byte checksum = 0x00;
-
 int received_data_buffer;
+int voltage_int = 0;
 
-int control_mode = 0;
-float pid_Kp = 0;
-float pid_Ki = 0;
-float pid_Kd = 0;
-int set_torque = 0;
 
-float error = 0;
-float error_i = error;
-int set_speed = 0;
-int motor_command = 0;
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   delay(100);
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB
@@ -180,6 +190,10 @@ void loop() {
                 case 0x03:
                 {
                   control_mode = received_data_buffer;
+                  integral = 0;
+                  derivative = 0;
+                  error_last = 0;
+
                   break;
                 }
                 case 0x04:
@@ -202,6 +216,12 @@ void loop() {
                   set_torque = received_data_buffer;
                   break;
                 }
+                case 0x08:
+                {
+                  set_position = received_data_buffer;
+                  rotary_count = map(set_position, 0, 360, 0, 100);
+                  break;
+                }
                 default:
                 {
 
@@ -213,26 +233,31 @@ void loop() {
         }
       }
     } else {
-
-      lastPressed = pressed;
-      pressed = digitalRead(BUTTON);
-      if (lastPressed == false && pressed == true) {
-        //Serial.println("Change Direction!!");
-        motor_direction = !motor_direction;
-      }      
-
-      if (motor_direction) {
-        digitalWrite(DIR_B, HIGH);
-      } else {
-        digitalWrite(DIR_B, LOW);
-      }
-
-      rotary_count = min(100, max(0, rotary_count));
-
-      set_speed = rotary_count;
+      
     }
 
 
+    lastPressed = pressed;
+    pressed = digitalRead(BUTTON);
+    if (lastPressed == false && pressed == true) {
+      //Serial.println("Change Direction!!");
+      motor_direction = !motor_direction;
+    }    
+
+    rotary_count = min(100, max(0, rotary_count));
+
+    motor_current = map(analogRead(SNS_B), 0, 676, 0, 2000);
+    motor_current_smooth = alpha * motor_current + (1 - alpha) * motor_current_smooth_last;
+    motor_current_smooth_last = motor_current_smooth;
+
+    
+    position_int = (int) (encoder_count * (360.0 / 748.0)) % 360;
+    if (position_int < 0) {
+      position_int += 360;
+    }
+
+
+    torque_int = Kt * motor_current_smooth;
 
     switch(control_mode) {
       case 0:
@@ -242,125 +267,110 @@ void loop() {
       }
       case 1: // Control mode 1 - SPEED
       {
-        pinMode(11, OUTPUT);
-        error = speed_int - set_speed;
 
-        motor_command = error * pid_Kp;
+        if (motor_direction) {
+          digitalWrite(DIR_B, HIGH);
+        } else {
+          digitalWrite(DIR_B, LOW);
+        }
 
-        pwm_output = map(motor_command, 0, 400, 0, 255);
-        OCR2A = pwm_output;
+        if(millis() > control_time + 10) {// Every 10 ms
+          dt = (double) (millis() - control_time) / 1000;
+          control_time = millis();
+
+          speed_int = (int) (( (float) abs(encoder_count - encoder_count_last) / 748.0) * (60 / dt));
+          encoder_count_last = encoder_count;
+
+          set_speed = map(rotary_count, 0, 100, 0, 230);
+
+          error = set_speed - speed_int;
+
+          integral += error * dt;
+          integral = max(-100, min(100, integral));
+
+          derivative = (error - error_last) / dt;
+          error_last = error;
+
+          motor_command = pid_Kp * error + pid_Ki * integral + pid_Kd * derivative;
+
+          motor_command = max(0, min(500, motor_command));
+
+          pwm_output = map(motor_command, 0, 200, 0, 255);
+          OCR2A = pwm_output;
+
+          pinMode(11, OUTPUT);
+        }
         break;  
       }
-      case 2: // Control mode 2 - SPEED
+      case 2: // Control mode 2 - POSITION
+      {
+        if(millis() > control_time + 10) {// Every 10 ms
+          dt = (double) (millis() - control_time) / 1000;
+          control_time = millis();
+
+          speed_int = (int) (( (float) abs(encoder_count - encoder_count_last) / 748.0) * (60 / dt));
+          encoder_count_last = encoder_count;
+
+          set_position = map(rotary_count, 0, 100, 0, 360);
+
+          error = set_position - position_int;
+
+          integral += error * dt;
+          integral = max(-100, min(100, integral));
+
+          derivative = (error - error_last) / dt;
+          error_last = error;
+
+          motor_command = pid_Kp * error + pid_Ki * integral + pid_Kd * derivative;
+
+          motor_command = max(0, min(500, motor_command));
+
+          pwm_output = map(motor_command, 0, 200, 0, 255);
+          OCR2A = pwm_output;
+
+          pinMode(11, OUTPUT);
+        }
+        break;
+      }
+      case 3: // Control mode 3 - TORQUE
       {
         pinMode(11, OUTPUT);
-        error = set_speed - speed_int;
-
-        motor_command = error * pid_Kp;
 
         break;
       }
-      case 3: // Control mode 3 - SPEED
-      {
-        pinMode(11, OUTPUT);
-
-        break;
-      }
 
     }
 
-
-    /*
-    pwm_output = map(rotary_count, 0, 100, 0, 255);
-    //analogWrite(PWM_B, pwm_output);
-    if (pwm_output <= 0) {
-      pinMode(11, INPUT);
-    } else {
-      pinMode(11, OUTPUT);
-    }
-    OCR2A = pwm_output;
-    */
-
-    motor_current = map(analogRead(SNS_B), 0, 676, 0, 2000);
-    
-    /*
-    motor_current_smooth = 0;
-    for (int i = 0; i < 10; i++) {
-      motor_current_values[i] = motor_current_values[i+1];
-      motor_current_smooth += motor_current_values[i+1];
-    }
-    motor_current_values[10] = motor_current;
-    motor_current_smooth += motor_current_values[10];
-    motor_current_smooth = motor_current_smooth / 10;
-    */
-
-    motor_current_smooth = alpha * motor_current + (1 - alpha) * motor_current_smooth_last;
-    motor_current_smooth_last = motor_current_smooth;
-
-
-
-
-    //Serial.print("motor-current:");
-    //Serial.print(motor_current);
-    //Serial.print(",");
-    //Serial.print("motor-current-smooth:");
-    //Serial.print(motor_current_smooth);  
-    //Serial.print(",");
-    //Serial.print("encoder-count:");
-    //Serial.print(encoder_count);  
-    //Serial.print(",");
-    //Serial.print("rotary-count:");
-    //Serial.print(rotary_count);   
-    //Serial.println("");
 
     if(millis() > serial_time + 100) {// Every 100 ms
       serial_time = millis();
       
-      speed_int = (int) ((abs(encoder_count - encoder_count_last) / 748.0) * (60 / 0.1));
-      encoder_count_last = encoder_count;
-      
       byte current[] = {(motor_current_smooth & 0xFF00) >> 8, (motor_current_smooth & 0x00FF)};
-      //byte checksum = FRAME_START + 0x0B + 0x02 + current[0] + current[1];
-      //byte FrameBuffer[] = {FRAME_START, 0x0B, 0x02, current[0], current[1], checksum};
-      //Serial.write(FrameBuffer, 6);
-
       sendFrameBuffer(0x0B, current, 2);
 
-      //float voltage_int = map(pwm_output, 0, 255, 0, 9000);
+      float voltage_int = map(pwm_output, 0, 255, 0, 100);
       byte voltage[] = {(motor_command & 0xFF00) >> 8, (motor_command & 0x00FF)};
       sendFrameBuffer(0x0F, voltage, 2);
 
       byte speed[] = {(speed_int & 0xFF00) >> 8, (speed_int & 0x00FF)};
       sendFrameBuffer(0x0C, speed, 2);
 
-      error_int = (int) error;
-      byte error_buffer[]  {(error_int & 0xFF00) >> 8, (error_int & 0x00FF)};
+      byte error_buffer[]  {(error & 0xFF00) >> 8, (error & 0x00FF)};
       sendFrameBuffer(0x0E, error_buffer, 2);
 
       byte rotary_count_buffer[]  {(rotary_count & 0xFF00) >> 8, (rotary_count & 0x00FF)};
       sendFrameBuffer(0x10, rotary_count_buffer, 2);
 
-      /*
-      Serial.print("motor-speed:");
-      Serial.print(speed_int);
-      Serial.print(",");
-      Serial.print("ratio:");
-      Serial.print(abs(encoder_count - encoder_count_last) / 748.0);
-      Serial.print(",");
-      Serial.print("encoder-count:");
-      Serial.print(encoder_count);  
-      Serial.print(",");
-      Serial.print("encoder-count-last:");
-      Serial.print(encoder_count_last);  
-      Serial.println("");
+      byte torque_buffer[]  {(torque_int & 0xFF00) >> 8, (torque_int & 0x00FF)};
+      sendFrameBuffer(0x0D, torque_buffer, 2);
 
-      */
-
+      byte position_buffer[]  {(position_int & 0xFF00) >> 8, (position_int & 0x00FF)};
+      sendFrameBuffer(0x0A, position_buffer, 2);
           
     }
+
     
-
-
+    
 }
 
 
@@ -411,14 +421,14 @@ void sendFrame(int length)
 void rightEncoderEvent() {
   if (digitalRead(ENCODER_A) == HIGH) {
     if (digitalRead(ENCODER_B) == LOW) {
-      encoder_count++; }
-    else {
       encoder_count--; }
+    else {
+      encoder_count++; }
   } else {
     if (digitalRead(ENCODER_B) == LOW) {
-      encoder_count--;
-    } else {
       encoder_count++;
+    } else {
+      encoder_count--;
     }
   }
 }

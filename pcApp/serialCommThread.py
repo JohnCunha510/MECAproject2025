@@ -28,7 +28,7 @@ class SerialThread(QThread):
     data_frame = {"position": 0, "current": 0, "speed": 0, "torque": 0, "error": 0, "command": 0, "other": 0}
     new_data = pyqtSignal(object)
 
-    def __init__(self, port='COM19', baudrate=9600):
+    def __init__(self, port='COM19', baudrate=115200):
         super().__init__()
         self.port = port
         self.baudrate = baudrate
@@ -132,7 +132,7 @@ class SerialThread(QThread):
 
         self.out_frame.append(self.calculate_checksum() & 0x00FF)
 
-        print(self.out_frame)
+        #print(self.out_frame)
         
         if self.ser and self.ser.is_open:
             self.ser.write(bytes(self.out_frame))
@@ -141,8 +141,8 @@ class SerialThread(QThread):
         checksum = 0x00
         for byte in self.out_frame:
             checksum += byte
-            print("[101] %3X;" % (byte))
-        print("[102] %3X;" % (checksum))
+            #print("[101] %3X;" % (byte))
+        #print("[102] %3X;" % (checksum))
         return checksum
 
     def stop(self):

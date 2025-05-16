@@ -103,30 +103,46 @@ class ControlPanel(QWidget):
 
         # right layout for PID sliders
         PID_layout_right = QVBoxLayout()
+        PID_layout_right_Kp = QHBoxLayout()
 
         self.slider_Kp = QSlider(Qt.Horizontal)
-        self.slider_Kp.setRange(0, 10)
-        self.slider_Kp.setValue(1)
+        self.slider_Kp.setRange(0, 500)
+        self.slider_Kp.setValue(100)
         self.slider_Kp.setTickPosition(QSlider.TicksBelow)
-        self.slider_Kp.setTickInterval(1)
+        self.slider_Kp.setTickInterval(10)
         self.slider_Kp.valueChanged.connect(self.update_PID_Kp)
-        PID_layout_right.addWidget(self.slider_Kp)
+        self.label_Kp = QLabel(f"{1:.2f}")
+        PID_layout_right_Kp.addWidget(self.label_Kp)
+        PID_layout_right_Kp.addWidget(self.slider_Kp)
+        PID_layout_right.addLayout(PID_layout_right_Kp)
+
+
+        PID_layout_right_Ki = QHBoxLayout()
 
         self.slider_Ki = QSlider(Qt.Horizontal)
-        self.slider_Ki.setRange(0, 10)
-        self.slider_Ki.setValue(1)
+        self.slider_Ki.setRange(0, 500)
+        self.slider_Ki.setValue(100)
         self.slider_Ki.setTickPosition(QSlider.TicksBelow)
-        self.slider_Ki.setTickInterval(1)
+        self.slider_Ki.setTickInterval(10)
         self.slider_Ki.valueChanged.connect(self.update_PID_Ki)
-        PID_layout_right.addWidget(self.slider_Ki)
+        self.label_Ki = QLabel(f"{1:.2f}")
+        PID_layout_right_Ki.addWidget(self.label_Ki)
+        PID_layout_right_Ki.addWidget(self.slider_Ki)
+        PID_layout_right.addLayout(PID_layout_right_Ki)
+
+
+        PID_layout_right_Kd = QHBoxLayout()
 
         self.slider_Kd = QSlider(Qt.Horizontal)
-        self.slider_Kd.setRange(0, 10)
-        self.slider_Kd.setValue(1)
+        self.slider_Kd.setRange(0, 500)
+        self.slider_Kd.setValue(100)
         self.slider_Kd.setTickPosition(QSlider.TicksBelow)
-        self.slider_Kd.setTickInterval(1)
+        self.slider_Kd.setTickInterval(10)
         self.slider_Kd.valueChanged.connect(self.update_PID_Kd)
-        PID_layout_right.addWidget(self.slider_Kd)
+        self.label_Kd = QLabel(f"{1:.2f}")
+        PID_layout_right_Kd.addWidget(self.label_Kd)
+        PID_layout_right_Kd.addWidget(self.slider_Kd)
+        PID_layout_right.addLayout(PID_layout_right_Kd)
 
         PID_layout.addLayout(PID_layout_left, 1)
         PID_layout.addLayout(PID_layout_right, 6)
@@ -154,39 +170,52 @@ class ControlPanel(QWidget):
 
     # Reset sliders button function
     def reset_sliders(self):
-        self.slider_Kp.setValue(self.PID_Kp_reset)
-        self.slider_Ki.setValue(self.PID_Ki_reset)
-        self.slider_Kd.setValue(self.PID_Kd_reset)
+        self.slider_Kp.setValue( (int) (self.PID_Kp_reset * 100))
+        self.slider_Ki.setValue( (int) (self.PID_Ki_reset * 100))
+        self.slider_Kd.setValue( (int) (self.PID_Kd_reset * 100))
 
     # Control mode change function
     def set_mode(self, mode_id):
-        self.control_mode = mode_id
-        if mode_id == 1:
+        if self.control_mode == mode_id:
+            self.control_mode = 0
             self.PID_Kp_reset = 0
             self.PID_Ki_reset = 0
             self.PID_Kd_reset = 0
-        elif mode_id == 2:
-            self.PID_Kp_reset = 0
-            self.PID_Ki_reset = 0
-            self.PID_Kd_reset = 0
-        elif mode_id == 3:
-            self.PID_Kp_reset = 0
-            self.PID_Ki_reset = 0
-            self.PID_Kd_reset = 0
-        self.main_window.send_to_serial(0x03, mode_id)
+        else:
+            self.control_mode = mode_id
+            if mode_id == 1:
+                self.PID_Kp_reset = 1.2
+                self.PID_Ki_reset = 1
+                self.PID_Kd_reset = 0.05
+            elif mode_id == 2:
+                self.PID_Kp_reset = 0.5
+                self.PID_Ki_reset = 0
+                self.PID_Kd_reset = 0.8
+            elif mode_id == 3:
+                self.PID_Kp_reset = 0
+                self.PID_Ki_reset = 0
+                self.PID_Kd_reset = 0
+        self.main_window.send_to_serial(0x03, self.control_mode)
+        self.reset_sliders()
+        self.update_PID_Kp(self.PID_Kp_reset)
+        self.update_PID_Ki(self.PID_Ki_reset)
+        self.update_PID_Kd(self.PID_Kd_reset)
 
     # update PID Kp parameter from the slider
     def update_PID_Kp(self, val):
-        self.PID_Kp = self.slider_Kp.value()
-        self.main_window.send_to_serial(0x04, self.PID_Kp*100)
+        self.PID_Kp = self.slider_Kp.value() /100
+        self.label_Kp.setText(f"{self.PID_Kp:.2f}")
+        self.main_window.send_to_serial(0x04,  (int) (self.PID_Kp*100))
     
     def update_PID_Ki(self, val):
-        self.PID_Ki = self.slider_Ki.value()
-        self.main_window.send_to_serial(0x05, self.PID_Ki*100)
+        self.PID_Ki = self.slider_Ki.value() /100
+        self.label_Ki.setText(f"{self.PID_Ki:.2f}")
+        self.main_window.send_to_serial(0x05,  (int) (self.PID_Ki*100))
 
     def update_PID_Kd(self, val):
-        self.PID_Kd = self.slider_Kd.value()
-        self.main_window.send_to_serial(0x06, self.PID_Kd*100)
+        self.PID_Kd = self.slider_Kd.value() /100
+        self.label_Kd.setText(f"{self.PID_Kd:.2f}")
+        self.main_window.send_to_serial(0x06,  (int) (self.PID_Kd*100))
     
     # update set_torque variable from the slider
     def update_torque_slider(self, val):
@@ -197,23 +226,16 @@ class ControlPanel(QWidget):
 
 # Motor visualisation class
 class MotorWidget(QWidget):
-    def __init__(self):
+    def __init__(self, main_window_instance):
+        self.main_window = main_window_instance
         super().__init__()
         self.actual_angle = 0
         self.target_angle = 90
 
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.update_angles)
-        self.timer.start(100)
 
-    def update_angles(self):
-        if self.actual_angle != self.target_angle:
-            diff = (self.target_angle - self.actual_angle) % 360
-            if diff > 180:
-                self.actual_angle -= 5
-            else:
-                self.actual_angle += 5
-            self.actual_angle %= 360
+    def update_angles(self, new_target, new_actual):
+        self.actual_angle = new_actual
+        self.target_angle = new_target
         self.update()
 
     def draw_needle(self, painter, center, radius, angle_deg, color, width):
@@ -269,6 +291,7 @@ class MotorWidget(QWidget):
         angle_deg = math.degrees(angle_rad)
         angle = (90 - angle_deg) % 360
         self.target_angle = angle
+        self.main_window.send_to_serial(0x08, (int) (self.target_angle))
         self.update()
 
     def set_target_angle(self, angle):
@@ -288,6 +311,7 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 1200, 800)
 
         # Initialize data
+        self.motor_angle = 0
         self.x_data = [0]
         self.x_data_voltage = list(range(1, 102))
         self.y_data_current = [0]
@@ -300,7 +324,7 @@ class MainWindow(QMainWindow):
         self.target_angle = 90
 
         # Serial thread
-        self.serial_thread = SerialThread(port='COM19', baudrate=9600)
+        self.serial_thread = SerialThread(port='COM19', baudrate=115200)
         self.serial_thread.new_data.connect(self.receive_data)
         self.serial_thread.start()
 
@@ -326,7 +350,7 @@ class MainWindow(QMainWindow):
         self.control_display.setMinimumWidth(300)
         self.control_display.setMaximumHeight(500)
 
-        self.motor_display = MotorWidget()
+        self.motor_display = MotorWidget(window)
         self.motor_display.setMinimumWidth(300)
         self.motor_display.setMaximumHeight(500)
         
@@ -382,7 +406,7 @@ class MainWindow(QMainWindow):
             self.serial_thread.stop()
 
         # Create new thread with new port
-        self.serial_thread = SerialThread(port=new_port, baudrate=9600)
+        self.serial_thread = SerialThread(port=new_port, baudrate=115200)
         self.serial_thread.new_data.connect(self.receive_data)
         self.serial_thread.start()
 
@@ -395,27 +419,35 @@ class MainWindow(QMainWindow):
         self.restart_serial_thread(selected_port)
 
     def receive_data(self, value):
-        self.y_data_current.append(value["current"])
-        #value["command"] = 30
-        value["command"] = max(0, min(100, value["command"]))
-        self.y_data_voltage[1: value["command"]] = [9] * (value["command"]-1)
-        self.y_data_voltage[value["command"]: -1] = [0] * (100 - value["command"])
-        self.y_data_speed.append(value["speed"])
-        self.y_data_torque.append(value["torque"])
-        self.y_data_error.append(value["error"])
-        self.y_data_other.append(value["other"])
+        if self.motor_angle != value["position"]:
+            self.motor_angle = value["position"]
+            self.update_motor_angle()
+        else:
+            self.y_data_current.append(value["current"])
+            #value["command"] = 30
+            value["command"] = max(0, min(100, value["command"]))
+            self.y_data_voltage[1: value["command"]] = [9] * (value["command"]-1)
+            self.y_data_voltage[value["command"]: -1] = [0] * (100 - value["command"])
+            self.y_data_speed.append(value["speed"])
+            self.y_data_torque.append(value["torque"] / 1000)
+            self.y_data_error.append(value["error"])
+            self.y_data_other.append(value["other"])
 
-        #print("[1] %d, [2] %d, [3] %d;" % (value["current"], value["command"], value["speed"]))
-        self.x_data.append(self.x_data[-1] + 1)  # Simple x: count of values
+            #print("[1] %d, [2] %d, [3] %d;" % (value["current"], value["command"], value["speed"]))
+            self.x_data.append(self.x_data[-1] + 1)  # Simple x: count of values
 
-        if len(self.y_data_current) > 100:
-            self.x_data.pop(0)
-            self.y_data_current.pop(0)
-            #self.y_data_voltage.pop(0)
-            self.y_data_speed.pop(0)
-            self.y_data_torque.pop(0)
-            self.y_data_error.pop(0)
-            self.y_data_other.pop(0)
+            if len(self.y_data_current) > 100:
+                self.x_data.pop(0)
+                self.y_data_current.pop(0)
+                #self.y_data_voltage.pop(0)
+                self.y_data_speed.pop(0)
+                self.y_data_torque.pop(0)
+                self.y_data_error.pop(0)
+                self.y_data_other.pop(0)
+
+    def update_motor_angle(self):
+        self.motor_display.set_actual_angle(self.motor_angle)
+        
 
     def update_plot(self):
         self.current.clear()
