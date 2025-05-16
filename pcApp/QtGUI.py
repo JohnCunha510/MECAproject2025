@@ -159,7 +159,7 @@ class ControlPanel(QWidget):
 
         self.slider_torque = QSlider(Qt.Horizontal)
         self.slider_torque.setRange(0, 1000)
-        self.slider_torque.setValue(100)
+        self.slider_torque.setValue(200)
         self.slider_torque.setTickPosition(QSlider.TicksBelow)
         self.slider_torque.setTickInterval(30)
         self.slider_torque.valueChanged.connect(self.update_torque_slider)
@@ -501,7 +501,7 @@ class MainWindow(QMainWindow):
         self.torque.clear()
         self.torque.plot(self.x_data, self.y_data_torque)
         y_max = max(self.y_data_torque)
-        self.torque.set_ylim(bottom=0, top=1+y_max * 1.2)  # 10% headroom
+        self.torque.set_ylim(bottom=0, top=0.2+y_max * 1.2)  # 10% headroom
         self.torque.set_title("torque")
         self.torque.set_xlabel("Sample")
         self.torque.set_ylabel("Nm")

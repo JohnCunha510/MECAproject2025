@@ -335,11 +335,8 @@ void loop() {
             motor_command = 0;
           }
 
-          torque_error = set_torque - torque_int;
-
-          if (torque_error > 10) {
-            motor_command = motor_command - (0.1 * torque_error);
-
+          if (torque_int > set_torque + 10) {
+            motor_command = 0; 
           }
 
           motor_command = max(0, min(200, motor_command));
@@ -361,35 +358,18 @@ void loop() {
           speed_int = (int) (( (float) abs(encoder_count - encoder_count_last) / 748.0) * (60 / dt));
           encoder_count_last = encoder_count;
 
-          set_position = map(rotary_count, 0, 100, 0, 360);
-          rotary_command = set_position;
-
-          error = set_position - position_int;
+          error = - set_torque + torque_int;
 
           integral += error * dt;
-          integral = max(-500, min(500, integral));
+          integral = max(-100, min(100, integral));
 
           derivative = (error - error_last) / dt;
           error_last = error;
 
           motor_command = pid_Kp * error + pid_Ki * integral + pid_Kd * derivative;
 
-          if (motor_command < -1) {
-            digitalWrite(DIR_B, LOW);
-            motor_command = abs(motor_command);
-          } else if (motor_command > 1) {
-            digitalWrite(DIR_B, HIGH);
-            motor_command = motor_command;
-          } else {
-            motor_command = 0;
-          }
 
-          torque_error = set_torque - torque_int;
 
-          if (torque_error > 10) {
-            motor_command = motor_command - (0.1 * torque_error);
-
-          }
 
           motor_command = max(0, min(200, motor_command));
 
