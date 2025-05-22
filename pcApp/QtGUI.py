@@ -205,8 +205,8 @@ class ControlPanel(QWidget):
                 self.PID_Kd_reset = 0.05
             elif mode_id == 2:
                 self.PID_Kp_reset = 3.0
-                self.PID_Ki_reset = 0.1
-                self.PID_Kd_reset = 1.6
+                self.PID_Ki_reset = 1.2
+                self.PID_Kd_reset = 0
             elif mode_id == 3:
                 self.PID_Kp_reset = 0
                 self.PID_Ki_reset = 0
