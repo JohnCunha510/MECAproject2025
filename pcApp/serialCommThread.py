@@ -12,11 +12,11 @@ FRAME_START = 0x8A
 FRAME_ESCAPE_CHAR = 0x8B
 FRAME_XOR_CHAR = 0x20
 
-RCV_ST_IDLE = 0;
-RCV_ST_CMD = 1;
-RCV_ST_DATA_LENGTH = 2;
-RCV_ST_DATA = 3;
-RCV_ST_CHECKSUM = 4;
+RCV_ST_IDLE = 0
+RCV_ST_CMD = 1
+RCV_ST_DATA_LENGTH = 2
+RCV_ST_DATA = 3
+RCV_ST_CHECKSUM = 4
 
 DATA_COMMAND = ["position", "current", "speed", "torque", "error", "command", "other", "all"]
 
@@ -89,7 +89,7 @@ class SerialThread(QThread):
                         self.receiverStatus = RCV_ST_DATA
 
                     elif self.receiverStatus == RCV_ST_DATA:
-                        #print("[50] %3X;" % (self.value))
+                        #print("[50] %3d;" % (self.value))
                         self.in_frame.append(self.value)
                         if self.n_byte == self.dataLength:
                             self.data_frame[self.data_name] = self.value << (0 + (self.n_byte-1)*8)
